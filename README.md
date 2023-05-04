@@ -3,6 +3,14 @@ Testing APIs using Swagger
 
 
 
+
+## How to run the script
+
+Add the url of the json files that you want to test into the ```test_sites.txt```
+and just run: ```source init.sh```
+
+Or you can do all the steps manuelly by:
+
 1- Install virual anv
 ```pip install virtualenv```
 
@@ -15,7 +23,6 @@ Testing APIs using Swagger
 4- Install requirements
 ```pip install -r requirements.txt```
 
-5- Add the url of the json files that you want to test into the ```test_sites.txt````
+5- Add the url of the json files that you want to test into the ```test_sites.txt```
 
-6- Run the script
-```python3 test.py```
+6- Run the script. ```python3 test_urls.py```

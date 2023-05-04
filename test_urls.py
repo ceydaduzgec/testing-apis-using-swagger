@@ -1,4 +1,6 @@
+import json
 import requests
+from swagger_parser import SwaggerParser
 
 
 def get_urls_from_txt():
@@ -13,7 +15,7 @@ def get_swagger_data_for_each_url():
     for url in urls:
         response = requests.get(url)
         if response.status_code == 200:
-            url_results[url] = response.text
+            url_results[url] = response.json()
     return url_results
 
 
@@ -25,10 +27,9 @@ def test_urls():
     url_results = get_swagger_data_for_each_url()
     for url_name in url_results:
         print(f"Testing: {url_name}")
-        json_data = parse_json_content(url_results[url_name])
-        print(json_data)
-
-
+        parser = SwaggerParser(swagger_dict=url_results[url_name])
+        spec = parser.specification
+        print(spec['info']['version'])
 
 
 test_urls()
