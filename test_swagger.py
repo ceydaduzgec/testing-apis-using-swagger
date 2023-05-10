@@ -30,24 +30,6 @@ class ConnexionProcess(Process):
         Process.join(self)
 
 
-swagger_yaml_path = os.path.join(os.path.dirname(__file__), 'swagger.yaml')
-authorize_error = {
-    'post': {
-        '/v2/pet/{petId}': [200],
-        '/v2/pet': [200]
-    },
-    'put': {
-        '/v2/user/{username}': [200],
-        '/v2/pet': [200]
-    },
-    'delete': {
-        '/v2/pet/{petId}': [200],
-        '/v2/store/order/{orderId}': [200],
-        '/v2/user/{username}': [200]
-    }
-}
 swagger_io_url = 'http://petstore.swagger.io/v2'
-
-
-swagger_test(app_url=swagger_io_url, authorize_error=authorize_error, use_example=True) # dry_run=True)
+swagger_test(app_url=swagger_io_url, use_example=True) # dry_run=True)
 
