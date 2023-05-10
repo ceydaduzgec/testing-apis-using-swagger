@@ -28,6 +28,8 @@ def get_swagger_data_for_each_url():
 def test_urls():
     url_results = get_swagger_data_for_each_url()
     for base_url in url_results:
+        passed = 0
+        failed = 0
         print(f"-------- Parsing: {base_url} -------")
         parser = SwaggerParser(swagger_dict=url_results[base_url])
 
@@ -45,7 +47,7 @@ def test_urls():
                         if parameters[par]["type"] == "string":
                             parameter_values[parameters[par]["name"]] = "test"
                         elif parameters[par]["type"] == "integer":
-                            parameter_values[parameters[par]["name"]] = "9222968140491042141"
+                            parameter_values[parameters[par]["name"]] = "501589"
                         elif parameters[par]["type"] == "boolean":
                             parameter_values[parameters[par]["name"]] = "True"
 
@@ -54,24 +56,29 @@ def test_urls():
                                 api = api.split("{")[0] + parameter_values[api_parameter] + api.split("}")[1]
 
                     elif parameters[par]["in"] == "body" and parameters[par]["required"]:
-                        model = parameters[par]["schema"]["$ref"].split("/")[2]
+                        if parameters[par]["schema"].get("$ref"):
+                            model = parameters[par]["schema"]["$ref"].split("/")[2]
+                        elif parameters[par]["schema"].get("items"):
+                            model = parameters[par]["schema"]["items"]["$ref"].split("/")[2]
+
                         data = json.dumps(parser.definitions_example[model])
+                        # The second consumes is ignored, can be implemented later
                         headers = {"Content-Type": parser.paths[path][method]["consumes"][0]}
 
                 response = requests.request(method=method, url=api, data=data, headers=headers)
 
                 if response.status_code == 200:
                     print(f"PASSED: {api} - {method}")
+                    passed += 1
                 else:
                     print(f"FAILED: {api} - {method}")
+                    failed += 1
+
+        print(f"Passed: {passed} - Failed: {failed}")
 
 
 
 
 
-
-
-
-
-
-test_urls()
+if __name__ == "__main__":
+    test_urls()
