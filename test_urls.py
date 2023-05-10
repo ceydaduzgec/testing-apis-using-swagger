@@ -32,52 +32,61 @@ def test_urls():
         failed = 0
         print(f"-------- Parsing: {base_url} -------")
         parser = SwaggerParser(swagger_dict=url_results[base_url])
+        def_examples = parser.definitions_example
 
-        for path in parser.paths:
-            api = base_url + path
-            for method in parser.paths[path]:
+        for path in parser.specification["paths"]:
+            api = base_url + parser.base_path + path
+            for method in parser.specification["paths"][path]:
                 parameter_values = {}
                 data = None
                 headers = None
-                #print(f"Testing: {api} - {method}")
-                parameters = parser.paths[path][method]["parameters"]
+                # print(f"Testing: {api} - {method}")
+                parameters = parser.specification["paths"][path][method]["parameters"]
+                tag = parser.specification["paths"][path][method]["tags"][0]
 
-                for par in parameters:
-                    if parameters[par]["in"] == "path" and parameters[par]["required"]:
-                        if parameters[par]["type"] == "string":
-                            parameter_values[parameters[par]["name"]] = "test"
-                        elif parameters[par]["type"] == "integer":
-                            parameter_values[parameters[par]["name"]] = "501589"
-                        elif parameters[par]["type"] == "boolean":
-                            parameter_values[parameters[par]["name"]] = "True"
+                for parameter in parameters:
+                    if parameter["in"] == "path" and parameter["required"]:
+                        if parameter["type"] == "string":
+                            parameter_values[parameter["name"]] = "string"
+                        elif parameter["type"] == "integer":
+                            parser.specification["paths"][path][method]
+                            parameter_values[parameter["name"]] = "42"
+                        elif parameter["type"] == "boolean":
+                            parameter_values[parameter["name"]] = "True"
 
                         for api_parameter in parameter_values:
                             if api.find("{") != -1:
-                                api = api.split("{")[0] + parameter_values[api_parameter] + api.split("}")[1]
+                                api = api.split(
+                                    "{")[0] + parameter_values[api_parameter] + api.split("}")[1]
 
-                    elif parameters[par]["in"] == "body" and parameters[par]["required"]:
-                        if parameters[par]["schema"].get("$ref"):
-                            model = parameters[par]["schema"]["$ref"].split("/")[2]
-                        elif parameters[par]["schema"].get("items"):
-                            model = parameters[par]["schema"]["items"]["$ref"].split("/")[2]
+                    elif parameter["in"] == "body" and parameter["required"]:
+                        if parameter["schema"].get("$ref"):
+                            model = parameter["schema"]["$ref"].split(
+                                "/")[2]
+                            data = def_examples[model]
+                        elif parameter["schema"].get("items"):
+                            model = parameter["schema"]["items"]["$ref"].split(
+                                "/")[2]
+                            if parameter["schema"].get("type") == "array":
+                                data = [def_examples[model]]
 
-                        data = json.dumps(parser.definitions_example[model])
+                        data = json.dumps(data)
+
                         # The second consumes is ignored, can be implemented later
-                        headers = {"Content-Type": parser.paths[path][method]["consumes"][0]}
+                        headers = {
+                            "Content-Type": parser.paths[path][method]["consumes"][0]}
 
-                response = requests.request(method=method, url=api, data=data, headers=headers)
+                response = requests.request(
+                    method=method, url=api, data=data, headers=headers)
 
                 if response.status_code == 200:
-                    print(f"PASSED: {api} - {method}")
+                    # print(f"PASSED: {api} - {method}")
                     passed += 1
                 else:
                     print(f"FAILED: {api} - {method}")
                     failed += 1
 
         print(f"Passed: {passed} - Failed: {failed}")
-
-
-
 
 
 if __name__ == "__main__":
