@@ -53,7 +53,6 @@ def test_urls():
                             if api.find("{") != -1:
                                 api = api.split("{")[0] + parameter_values[api_parameter] + api.split("}")[1]
 
-
                     elif parameters[par]["in"] == "body" and parameters[par]["required"]:
                         model = parameters[par]["schema"]["$ref"].split("/")[2]
                         data = json.dumps(parser.definitions_example[model])
