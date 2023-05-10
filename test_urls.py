@@ -69,12 +69,22 @@ def test_urls():
                                 "/")[2]
                             if parameter["schema"].get("type") == "array":
                                 data = [def_examples[model]]
-
                         data = json.dumps(data)
-
-                        # The second consumes is ignored, can be implemented later
                         headers = {
-                            "Content-Type": parser.paths[path][method]["consumes"][0]}
+                            "Content-Type": parser.specification["paths"][path][method]["consumes"][0]
+                        }
+
+                    elif parameter["in"] == "formData":
+                        pass
+
+                    elif parameter["in"] == "query":
+                        pass
+
+                    elif parameter["in"] == "header":
+                        pass
+
+                    else:
+                        print(parameter["in"])
 
                 response = requests.request(
                     method=method, url=api, data=data, headers=headers)

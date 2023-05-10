@@ -26,3 +26,6 @@ Or you can do all the steps manuelly by:
 5- Add the url of the json files that you want to test into the ```test_sites.txt```
 
 6- Run the script. ```python3 test_urls.py```
+
+
+https://mainnet.staging.api.perawallet.app/v1/documentation/?format=openapi

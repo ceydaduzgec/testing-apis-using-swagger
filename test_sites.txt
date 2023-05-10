@@ -1,2 +1,1 @@
 https://petstore.swagger.io/v2/swagger.json
-https://mainnet.staging.api.perawallet.app/v1/documentation/?format=openapi
