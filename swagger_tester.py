@@ -16,7 +16,7 @@ from swagger_parser import SwaggerParser
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 # The swagger path item object (as well as HTTP) allows for the following
 # HTTP methods (http://swagger.io/specification/#pathItemObject):
@@ -24,7 +24,8 @@ _HTTP_METHODS = ['put', 'post', 'get', 'delete', 'options', 'head', 'patch']
 
 
 def get_request_args(path, action, swagger_parser):
-    """Get request args from an action and a path.
+    """
+    Get request args from an action and a path.
 
     Args:
         path: path of the action.
@@ -45,8 +46,54 @@ def get_request_args(path, action, swagger_parser):
     return request_args
 
 
+def get_url_body_from_request(action, path, request_args, swagger_parser):
+    """Get the url and the body from an action, path, and request args.
+
+    Args:
+        action: HTTP action.
+        path: path of the request.
+        request_args: dict of args to send to the request.
+        swagger_parser: instance of swagger parser.
+
+    Returns:
+        url, body, headers, files
+    """
+    url, body, query_params, headers, files = parse_parameters(path, action, path, request_args, swagger_parser)
+
+    if query_params:
+        url = '{0}?{1}'.format(url, urlencode(query_params))
+
+    if ('Content-Type', 'multipart/form-data') not in headers:
+        try:
+            if body:
+                body = json.dumps(body)
+        except TypeError as exc:
+            logger.warning(u'Cannot decode body: {0}.'.format(repr(exc)))
+    else:
+        headers.remove(('Content-Type', 'multipart/form-data'))
+
+    return url, body, headers, files
+
+
+def get_method_from_action(client, action):
+    """Get a client method from an action.
+
+    Args:
+        client: flask client.
+        aciton: action name.
+
+    Returns:
+        A flask client function.
+    """
+    error_msg = "Action '{0}' is not recognized; needs to be one of {1}.".format(action, str(_HTTP_METHODS))
+    assert action in _HTTP_METHODS, error_msg
+
+    return client.__getattribute__(action)
+
+
 def validate_definition(swagger_parser, valid_response, response):
-    """Validate the definition of the response given the given specification and body.
+    """
+    Validate the definition of the response given the given specification and body.
 
     Args:
         swagger_parser: instance of swagger parser.
@@ -143,58 +190,9 @@ def parse_parameters(url, action, path, request_args, swagger_parser):
     return url, body, query_params, headers, files
 
 
-def get_url_body_from_request(action, path, request_args, swagger_parser):
-    """Get the url and the body from an action, path, and request args.
-
-    Args:
-        action: HTTP action.
-        path: path of the request.
-        request_args: dict of args to send to the request.
-        swagger_parser: instance of swagger parser.
-
-    Returns:
-        url, body, headers, files
-    """
-    url, body, query_params, headers, files = parse_parameters(path, action, path, request_args, swagger_parser)
-
-    if query_params:
-        url = '{0}?{1}'.format(url, urlencode(query_params))
-
-    if ('Content-Type', 'multipart/form-data') not in headers:
-        try:
-            if body:
-                body = json.dumps(body)
-        except TypeError as exc:
-            logger.warning(u'Cannot decode body: {0}.'.format(repr(exc)))
-    else:
-        headers.remove(('Content-Type', 'multipart/form-data'))
-
-    return url, body, headers, files
-
-
-def get_method_from_action(client, action):
-    """Get a client method from an action.
-
-    Args:
-        client: flask client.
-        aciton: action name.
-
-    Returns:
-        A flask client function.
-    """
-    error_msg = "Action '{0}' is not recognized; needs to be one of {1}.".format(action, str(_HTTP_METHODS))
-    assert action in _HTTP_METHODS, error_msg
-
-    return client.__getattribute__(action)
-
-
 def swagger_test(app_url=None, wait_time_between_tests=0, use_example=True,
                  dry_run=False, extra_headers={}):
-    """Test the given swagger api.
-
-    Test with either a swagger.yaml path for a connexion app or with an API
-    URL if you have a running API.
-
+    """
     Args:
         app_url: URL of the swagger api.
         wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
@@ -215,10 +213,7 @@ def swagger_test(app_url=None, wait_time_between_tests=0, use_example=True,
 
 def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True,
                        dry_run=False, extra_headers={}):
-    """Test the given swagger api. Yield the action and operation done for each test.
-
-    Test with either a swagger.yaml path for a connexion app or with an API
-    URL if you have a running API.
+    """Test the given swagger api Yield the action and operation done for each test.
 
     Args:
         app_url: URL of the swagger api.
@@ -233,19 +228,20 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
-    # Init test
+    # Get swagger json response and parse it
     if app_url is not None:
         app_client = requests
-        remote_swagger_def = requests.get(u'{0}/swagger.json'.format(app_url)).json()
+        remote_swagger_def = requests.get(app_url).json()
         swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=use_example)
+        app_url = app_url[:-len('/swagger.json')]
     else:
         raise ValueError('You must either specify a swagger.yaml path or an app url')
 
-    print("Starting testrun against {0} using examples: {1}".format(app_url, use_example))
+    print("Starting runing tests for {0} using examples: {1}".format(app_url, use_example))
 
     operation_sorted = {method: [] for method in _HTTP_METHODS}
 
-    # Sort operation by action
+    # Sort operation by action in order of _HTTP_METHODS
     operations = swagger_parser.operation.copy()
     operations.update(swagger_parser.generated_operation)
     for operation, request in operations.items():
@@ -253,24 +249,19 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
 
     postponed = []
 
-    # For every operationId
+    # For every action make request
     for action in _HTTP_METHODS:
         for operation in operation_sorted[action]:
-            # Make request
+            # path is relative to the base path
             path = operation[1][0]
-            client_name = getattr(app_client, '__name__', 'FlaskClient')
 
             request_args = get_request_args(path, action, swagger_parser)
             url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
 
-            print(u'TESTING {0} {1}'.format(action.upper(), url))
+            print(u'Testing {0} {1}'.format(action.upper(), url))
 
             # Add any extra headers specified by the user
             headers.extend([(key, value)for key, value in extra_headers.items()])
-
-            if app_url is None:
-                logger.error(u'You must specify an app url')
-                continue
 
             if app_url.endswith(swagger_parser.base_path):
                 base_url = app_url[:-len(swagger_parser.base_path)]
@@ -288,8 +279,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                                                                       data=body,
                                                                       files=files)
 
-            print(u'Using {0}, got status code {1} for ********** {2} {3}'.format(
-                client_name, response.status_code, action.upper(), url))
+            print(u'Status code {0} for {1} {2}'.format(response.status_code, action.upper(), url))
 
             if response.status_code != 404:
                 # Get valid request and response body
@@ -339,3 +329,12 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                 postponed.append({'action': action, 'operation': operation})
                 yield (action, operation)
                 continue
+
+
+def use_swagger_tester():
+    swagger_io_url = 'http://petstore.swagger.io/v2/swagger.json'
+    swagger_test(app_url=swagger_io_url, use_example=True)
+
+
+if __name__ == "__main__":
+    use_swagger_tester()
