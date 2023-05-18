@@ -141,9 +141,14 @@ def validate_definition(swagger_parser, valid_response, response):
         body: valid body answer from spec.
         response: response of the request.
     """
+
+    # if isinstance(response, dict) and response.get("code") in [200, 201]:
+    #     return
+
     # additionalProperties do not match any definition because the keys
     # vary. we can only check the type of the values
     if 'any_prop1' in valid_response and 'any_prop2' in valid_response:
+        # GET /v2/store/inventory
         assert swagger_parser.validate_additional_properties(valid_response, response)
         return
 
@@ -266,8 +271,6 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                                                                       data=body,
                                                                       files=files)
 
-            print(f"Status code {response.status_code} for {action.upper()} {url}")
-
             if response.status_code != 404:
                 # Get valid request and response body
                 body_req = swagger_parser.get_send_request_correct_body(path, action)
@@ -295,13 +298,15 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                     response_json = response_text
 
                 if response.status_code in [200, 201]:
-                    print("PASSED")
+                    print(f"PASSED status code {response.status_code}")
                 elif response.status_code in response_spec.keys():
                     validate_definition(swagger_parser, response_spec[response.status_code], response_json)
+                    print(f"PASSED status code {response.status_code}")
                 elif 'default' in response_spec.keys():
                     validate_definition(swagger_parser, response_spec['default'], response_json)
+                    print(f"PASSED status code {response.status_code}")
                 else:
-                    print(f"Invalid status code {response.status_code}. Expected: { response_spec.keys()}")
+                    print(f"FAILED status code {response.status_code} Expected: {list(response_spec.keys())}")
 
                 if wait_time_between_tests > 0:
                     time.sleep(wait_time_between_tests)
