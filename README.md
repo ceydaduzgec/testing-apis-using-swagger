@@ -1,13 +1,9 @@
-# testing-apis-using-swagger
-Testing APIs using Swagger
+## Testing APIs using Swagger
 
 
+### How to run the script
 
-
-## How to run the script
-
-Add the url of the json files that you want to test into the ```test_sites.txt```
-and just run: ```source init.sh```
+You can just run: ```source init.sh```
 
 Or you can do all the steps manuelly by:
 
@@ -23,9 +19,7 @@ Or you can do all the steps manuelly by:
 4- Install requirements
 ```pip install -r requirements.txt```
 
-5- Add the url of the json files that you want to test into the ```test_sites.txt```
+5- Run the script. ```python3 test_urls.py```
 
-6- Run the script. ```python3 test_urls.py```
+In order to change the url of the swagger file, you can change the variable ```swagger_url``` in the file ```test_swagger.py```
 
-
-https://mainnet.staging.api.perawallet.app/v1/documentation/?format=openapi

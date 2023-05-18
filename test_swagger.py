@@ -20,7 +20,7 @@ logger.setLevel(logging.WARNING)
 
 # The swagger path item object (as well as HTTP) allows for the following
 # HTTP methods (http://swagger.io/specification/#pathItemObject):
-_HTTP_METHODS = ['put', 'post', 'get', 'delete', 'options', 'head', 'patch']
+_HTTP_METHODS = ['post', 'put', 'get', 'options', 'head', 'patch', 'delete']
 
 
 def get_request_args(path, action, swagger_parser):
@@ -182,13 +182,12 @@ def validate_definition(swagger_parser, valid_response, response):
         assert len(set(valid_definition).intersection(actual_definition)) >= 1
 
 
-def swagger_test(app_url=None, wait_time_between_tests=0, use_example=True,
+def swagger_test(app_url=None, wait_time_between_tests=0,
                  dry_run=False, extra_headers={}):
     """
     Args:
         app_url: URL of the swagger api.
         wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        use_example: use example of your swagger file instead of generated data.
         dry_run: don't actually execute the test, only show what would be sent
         extra_headers: additional headers you may want to send for all operations
 
@@ -197,20 +196,18 @@ def swagger_test(app_url=None, wait_time_between_tests=0, use_example=True,
     """
     for _ in swagger_test_yield(app_url=app_url,
                                 wait_time_between_tests=wait_time_between_tests,
-                                use_example=use_example,
                                 dry_run=dry_run,
                                 extra_headers=extra_headers):
         pass
 
 
-def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True,
+def swagger_test_yield(app_url=None, wait_time_between_tests=0,
                        dry_run=False, extra_headers={}):
     """Test the given swagger api Yield the action and operation done for each test.
 
     Args:
         app_url: URL of the swagger api.
         wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        use_example: use example of your swagger file instead of generated data.
         dry_run: don't actually execute the test, only show what would be sent
         extra_headers: additional headers you may want to send for all operations
 
@@ -224,12 +221,12 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
     if app_url is not None:
         app_client = requests
         remote_swagger_def = requests.get(app_url).json()
-        swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=use_example)
+        swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
         app_url = app_url[:-len('/swagger.json')]
     else:
         raise ValueError('You must either specify a swagger.yaml path or an app url')
 
-    print(f"Starting runing tests for {app_url} using examples: {use_example}")
+    print(f"Starting runing tests for {app_url} using examples.")
 
     operation_sorted = {method: [] for method in _HTTP_METHODS}
 
@@ -324,5 +321,5 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
 
 
 if __name__ == "__main__":
-    swagger_io_url = 'http://petstore.swagger.io/v2/swagger.json'
-    swagger_test(app_url=swagger_io_url, use_example=True)
+    swagger_url = 'http://petstore.swagger.io/v2/swagger.json'
+    swagger_test(app_url=swagger_url)
