@@ -61,14 +61,14 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
     url, body, query_params, headers, files = parse_parameters(path, action, path, request_args, swagger_parser)
 
     if query_params:
-        url = '{0}?{1}'.format(url, urlencode(query_params))
+        url = f"{url}?{urlencode(query_params)}"
 
     if ('Content-Type', 'multipart/form-data') not in headers:
         try:
             if body:
                 body = json.dumps(body)
         except TypeError as exc:
-            logger.warning(u'Cannot decode body: {0}.'.format(repr(exc)))
+            logger.warning(f"Cannot decode body: {repr(exc)}")
     else:
         headers.remove(('Content-Type', 'multipart/form-data'))
 
@@ -85,7 +85,7 @@ def get_method_from_action(client, action):
     Returns:
         A flask client function.
     """
-    error_msg = "Action '{0}' is not recognized; needs to be one of {1}.".format(action, str(_HTTP_METHODS))
+    error_msg = f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
     assert action in _HTTP_METHODS, error_msg
 
     return client.__getattribute__(action)
@@ -164,7 +164,7 @@ def parse_parameters(url, action, path, request_args, swagger_parser):
             if parameter_spec['in'] == 'body':
                 body = request_args[parameter_name]
             elif parameter_spec['in'] == 'path':
-                url = url.replace('{{{0}}}'.format(parameter_name), str(request_args[parameter_name]))
+                url = url.replace(f"{{{parameter_name}}}", str(request_args[parameter_name]))
             elif parameter_spec['in'] == 'query':
                 if isinstance(request_args[parameter_name], list):
                     query_params[parameter_name] = ','.join(request_args[parameter_name])
@@ -237,7 +237,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
     else:
         raise ValueError('You must either specify a swagger.yaml path or an app url')
 
-    print("Starting runing tests for {0} using examples: {1}".format(app_url, use_example))
+    print(f"Starting runing tests for {app_url} using examples: {use_example}")
 
     operation_sorted = {method: [] for method in _HTTP_METHODS}
 
@@ -258,7 +258,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
             request_args = get_request_args(path, action, swagger_parser)
             url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
 
-            print(u'Testing {0} {1}'.format(action.upper(), url))
+            print(f"Testing {action.upper()} {url}")
 
             # Add any extra headers specified by the user
             headers.extend([(key, value)for key, value in extra_headers.items()])
@@ -267,7 +267,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                 base_url = app_url[:-len(swagger_parser.base_path)]
             else:
                 base_url = app_url
-            full_path = u'{0}{1}'.format(base_url, url)
+            full_path = f"{base_url}{url}"
             full_path = full_path.replace('http', 'https')
             if dry_run:
                 print("\nWould send %s to %s with body %s and headers %s" %
@@ -279,7 +279,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                                                                       data=body,
                                                                       files=files)
 
-            print(u'Status code {0} for {1} {2}'.format(response.status_code, action.upper(), url))
+            print(f"Status code {response.status_code} for {action.upper()} {url}")
 
             if response.status_code != 404:
                 # Get valid request and response body
@@ -288,7 +288,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                 try:
                     response_spec = swagger_parser.get_request_data(path, action, body_req)
                 except (TypeError, ValueError) as exc:
-                    logger.warning(u'Error in the swagger file: {0}'.format(repr(exc)))
+                    logger.warning(f"Error in the swagger file: {repr(exc)}")
                     continue
 
                 # Get response data
@@ -314,7 +314,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                 elif 'default' in response_spec.keys():
                     validate_definition(swagger_parser, response_spec['default'], response_json)
                 else:
-                    print('Invalid status code {0}. Expected: {1}'.format(response.status_code, response_spec.keys()))
+                    print(f"Invalid status code {response.status_code}. Expected: { response_spec.keys()}")
 
                 if wait_time_between_tests > 0:
                     time.sleep(wait_time_between_tests)
@@ -323,7 +323,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
             else:
                 # 404 => Postpone retry
                 if {'action': action, 'operation': operation} in postponed:  # Already postponed => raise error
-                    raise Exception(u'Invalid status code {0}'.format(response.status_code))
+                    raise Exception(f"Invalid status code {response.status_code}")
 
                 operation_sorted[action].append(operation)
                 postponed.append({'action': action, 'operation': operation})
