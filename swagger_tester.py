@@ -58,7 +58,48 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
     Returns:
         url, body, headers, files
     """
-    url, body, query_params, headers, files = parse_parameters(path, action, path, request_args, swagger_parser)
+
+    url = path
+    body = None
+    query_params = {}
+    files = {}
+    headers = [('Content-Type', 'application/json')]
+
+    if path in swagger_parser.paths.keys() and action in swagger_parser.paths[path].keys():
+        operation_spec = swagger_parser.paths[path][action]
+
+        # Get body and path
+        for parameter_name, parameter_spec in operation_spec['parameters'].items():
+            if parameter_spec['in'] == 'body':
+                body = request_args[parameter_name]
+
+            elif parameter_spec['in'] == 'path':
+                url = url.replace(f"{{{parameter_name}}}", str(request_args[parameter_name]))
+
+            elif parameter_spec['in'] == 'query':
+                if isinstance(request_args[parameter_name], list):
+                    query_params[parameter_name] = ','.join(request_args[parameter_name])
+                else:
+                    query_params[parameter_name] = str(request_args[parameter_name])
+
+            elif parameter_spec['in'] == 'formData':
+                if body is None:
+                    body = {}
+
+                if (isinstance(request_args[parameter_name], tuple) and
+                        hasattr(request_args[parameter_name][0], 'read')):
+                    files[parameter_name] = (request_args[parameter_name][1],
+                                             request_args[parameter_name][0])
+                else:
+                    body[parameter_name] = request_args[parameter_name]
+
+                # The first header is always content type, so just replace it so we don't squash custom headers
+                headers[0] = ('Content-Type', 'multipart/form-data')
+
+            elif parameter_spec['in'] == 'header':
+                header_value = request_args.get(parameter_name)
+                header_value = header_value or parameter_spec.get('default', '')
+                headers += [(parameter_spec['name'], str(header_value))]
 
     if query_params:
         url = f"{url}?{urlencode(query_params)}"
@@ -134,60 +175,6 @@ def validate_definition(swagger_parser, valid_response, response):
         valid_definition = swagger_parser.get_dict_definition(valid_response, get_list=True)
         actual_definition = swagger_parser.get_dict_definition(response, get_list=True)
         assert len(set(valid_definition).intersection(actual_definition)) >= 1
-
-
-def parse_parameters(url, action, path, request_args, swagger_parser):
-    """Parse the swagger parameters to make a request.
-
-    Replace var in url, make query dict, body and headers.
-
-    Args:
-        url: url of the request.
-        action: HTTP action.
-        path: path of the request.
-        request_args: dict of args to send to the request.
-        swagger_parser: instance of swagger parser.
-
-    Returns:
-        (url, body, query_params, headers, files)
-    """
-    body = None
-    query_params = {}
-    files = {}
-    headers = [('Content-Type', 'application/json')]
-
-    if path in swagger_parser.paths.keys() and action in swagger_parser.paths[path].keys():
-        operation_spec = swagger_parser.paths[path][action]
-
-        # Get body and path
-        for parameter_name, parameter_spec in operation_spec['parameters'].items():
-            if parameter_spec['in'] == 'body':
-                body = request_args[parameter_name]
-            elif parameter_spec['in'] == 'path':
-                url = url.replace(f"{{{parameter_name}}}", str(request_args[parameter_name]))
-            elif parameter_spec['in'] == 'query':
-                if isinstance(request_args[parameter_name], list):
-                    query_params[parameter_name] = ','.join(request_args[parameter_name])
-                else:
-                    query_params[parameter_name] = str(request_args[parameter_name])
-            elif parameter_spec['in'] == 'formData':
-                if body is None:
-                    body = {}
-
-                if (isinstance(request_args[parameter_name], tuple) and
-                        hasattr(request_args[parameter_name][0], 'read')):
-                    files[parameter_name] = (request_args[parameter_name][1],
-                                             request_args[parameter_name][0])
-                else:
-                    body[parameter_name] = request_args[parameter_name]
-
-                # The first header is always content type, so just replace it so we don't squash custom headers
-                headers[0] = ('Content-Type', 'multipart/form-data')
-            elif parameter_spec['in'] == 'header':
-                header_value = request_args.get(parameter_name)
-                header_value = header_value or parameter_spec.get('default', '')
-                headers += [(parameter_spec['name'], str(header_value))]
-    return url, body, query_params, headers, files
 
 
 def swagger_test(app_url=None, wait_time_between_tests=0, use_example=True,
@@ -331,10 +318,6 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, use_example=True
                 continue
 
 
-def use_swagger_tester():
+if __name__ == "__main__":
     swagger_io_url = 'http://petstore.swagger.io/v2/swagger.json'
     swagger_test(app_url=swagger_io_url, use_example=True)
-
-
-if __name__ == "__main__":
-    use_swagger_tester()
