@@ -6,6 +6,7 @@ import os
 import requests
 import six
 import time
+from django.contrib import messages
 
 try:
     from urllib import urlencode
@@ -182,27 +183,8 @@ def validate_definition(swagger_parser, valid_response, response):
         assert len(set(valid_definition).intersection(actual_definition)) >= 1
 
 
-def swagger_test(app_url=None, wait_time_between_tests=0,
-                 dry_run=False, extra_headers={}):
-    """
-    Args:
-        app_url: URL of the swagger api.
-        wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        dry_run: don't actually execute the test, only show what would be sent
-        extra_headers: additional headers you may want to send for all operations
-
-    Raises:
-        ValueError: In case you specify neither a swagger.yaml path or an app URL.
-    """
-    for _ in swagger_test_yield(app_url=app_url,
-                                wait_time_between_tests=wait_time_between_tests,
-                                dry_run=dry_run,
-                                extra_headers=extra_headers):
-        pass
-
-
 def swagger_test_yield(app_url=None, wait_time_between_tests=0,
-                       dry_run=False, extra_headers={}):
+                       dry_run=False, extra_headers={},request=None):
     """Test the given swagger api Yield the action and operation done for each test.
 
     Args:
@@ -318,3 +300,26 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
                 postponed.append({'action': action, 'operation': operation})
                 yield (action, operation)
                 continue
+
+
+def swagger_test(app_url=None, wait_time_between_tests=0,
+                 dry_run=False, extra_headers={}, request=None):
+    """
+    Args:
+        app_url: URL of the swagger api.
+        wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
+        dry_run: don't actually execute the test, only show what would be sent
+        extra_headers: additional headers you may want to send for all operations
+
+    Raises:
+        ValueError: In case you specify neither a swagger.yaml path or an app URL.
+    """
+    for action, operation in swagger_test_yield(app_url=app_url,
+                                              wait_time_between_tests=wait_time_between_tests,
+                                              dry_run=dry_run,
+                                              extra_headers=extra_headers,
+                                              request=request):
+        if action:
+            messages.success(request, operation)
+        else:
+            messages.error(request, operation)
