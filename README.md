@@ -1,7 +1,6 @@
-## Testing APIs using Swagger
+# Testing APIs using Swagger
 
-
-### How to run the script
+## How to run the script
 
 You can just run: ```source init.sh```
 
@@ -22,4 +21,3 @@ Or you can do all the steps manuelly by:
 5- Run the script. ```python3 test_urls.py```
 
 In order to change the url of the swagger file, you can change the variable ```swagger_url``` in the file ```test_swagger.py```
-

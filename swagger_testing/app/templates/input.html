@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>URL Processing</title>
+</head>
+<body>
+    <h1>URL Processing</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        <label for="url">Enter a URL:</label>
+        <input type="text" name="url" id="url">
+        <button type="submit">Process</button>
+    </form>
+
+    {% if results %}
+        <h2>Results:</h2>
+        <ul>
+            {% for result in results %}
+                <li>{{ result }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</body>
+</html>

@@ -1,5 +1,5 @@
 import requests
-from test_swagger import swagger_test
+from swagger_testing.app.swagger_utils import swagger_test
 
 
 def get_json_urls_from_txt():

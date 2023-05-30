@@ -1,4 +1,0 @@
-requests
-# unittest
-swagger-parser==1.0.1
-six
