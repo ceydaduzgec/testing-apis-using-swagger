@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import requests
 import six
 import time
@@ -23,6 +24,17 @@ _HTTP_METHODS = ['post', 'put', 'get', 'options', 'head', 'patch', 'delete']
 
 
 def get_request_args(path, action, swagger_parser):
+    """
+    Get request args from an action and a path.
+
+    Args:
+        path: path of the action.
+        action: action of the request(get, delete, post, put).
+        swagger_parser: instance of SwaggerParser.
+
+    Returns:
+        A dict of args to transmit to bravado.
+    """
     request_args = {}
     if path in swagger_parser.paths.keys() and action in swagger_parser.paths[path].keys():
         operation_spec = swagger_parser.paths[path][action]
@@ -35,6 +47,18 @@ def get_request_args(path, action, swagger_parser):
 
 
 def get_url_body_from_request(action, path, request_args, swagger_parser):
+    """Get the url and the body from an action, path, and request args.
+
+    Args:
+        action: HTTP action.
+        path: path of the request.
+        request_args: dict of args to send to the request.
+        swagger_parser: instance of swagger parser.
+
+    Returns:
+        url, body, headers, files
+    """
+
     url = path
     body = None
     query_params = {}
@@ -92,6 +116,22 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
     return url, body, headers, files
 
 
+def get_method_from_action(client, action):
+    """Get a client method from an action.
+
+    Args:
+        client: flask client.
+        aciton: action name.
+
+    Returns:
+        A flask client function.
+    """
+    error_msg = f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
+    assert action in _HTTP_METHODS, error_msg
+
+    return client.__getattribute__(action)
+
+
 def validate_definition(swagger_parser, valid_response, response):
     """
     Validate the definition of the response given the given specification and body.
@@ -142,6 +182,25 @@ def validate_definition(swagger_parser, valid_response, response):
         assert len(set(valid_definition).intersection(actual_definition)) >= 1
 
 
+def swagger_test(app_url=None, wait_time_between_tests=0,
+                 dry_run=False, extra_headers={}):
+    """
+    Args:
+        app_url: URL of the swagger api.
+        wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
+        dry_run: don't actually execute the test, only show what would be sent
+        extra_headers: additional headers you may want to send for all operations
+
+    Raises:
+        ValueError: In case you specify neither a swagger.yaml path or an app URL.
+    """
+    for _ in swagger_test_yield(app_url=app_url,
+                                wait_time_between_tests=wait_time_between_tests,
+                                dry_run=dry_run,
+                                extra_headers=extra_headers):
+        pass
+
+
 def swagger_test_yield(app_url=None, wait_time_between_tests=0,
                        dry_run=False, extra_headers={}):
     """Test the given swagger api Yield the action and operation done for each test.
@@ -160,6 +219,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
     """
     # Get swagger json response and parse it
     if app_url is not None:
+        app_client = requests
         remote_swagger_def = requests.get(app_url).json()
         swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
         app_url = app_url[:-len('/swagger.json')]
@@ -203,12 +263,10 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
                             (action.upper(), full_path, body, headers))
                 continue
 
-            assert action in _HTTP_METHODS, f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
-            response = requests.__getattribute__(action)(full_path,
-                                                           headers=dict(headers),
-                                                            data=body,
-                                                            files=files
-                                                            )
+            response = get_method_from_action(app_client, action)(full_path,
+                                                                      headers=dict(headers),
+                                                                      data=body,
+                                                                      files=files)
 
             if response.status_code != 404:
                 # Get valid request and response body
@@ -260,22 +318,3 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
                 postponed.append({'action': action, 'operation': operation})
                 yield (action, operation)
                 continue
-
-
-def swagger_test(app_url=None, wait_time_between_tests=0,
-                 dry_run=False, extra_headers={}):
-    """
-    Args:
-        app_url: URL of the swagger api.
-        wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        dry_run: don't actually execute the test, only show what would be sent
-        extra_headers: additional headers you may want to send for all operations
-
-    Raises:
-        ValueError: In case you specify neither a swagger.yaml path or an app URL.
-    """
-    for _ in swagger_test_yield(app_url=app_url,
-                                wait_time_between_tests=wait_time_between_tests,
-                                dry_run=dry_run,
-                                extra_headers=extra_headers):
-        pass

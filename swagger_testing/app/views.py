@@ -10,7 +10,7 @@ class URLProcessingView(View):
         return render(request, self.template_name)
 
     def post(self, request):
-        url = request.POST.get('url')  # Assuming the URL is submitted via a form field named 'url'
-        results = swagger_test(app_url=url)
+        swagger_url = request.POST.get('swagger_url')  # Assuming the URL is submitted via a form field named 'url'
+        swagger_url = 'http://petstore.swagger.io/v2/swagger.json'
+        results = swagger_test(app_url=swagger_url)
         return render(request, self.template_name, {'results': results})
-
