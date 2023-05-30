@@ -1,23 +1,16 @@
 # Testing APIs using Swagger
 
+
+## Requirements
+
+Install Docker
+
 ## How to run the script
 
-You can just run: ```source init.sh```
+1. Clone the repository to your local machine
+2. Open a terminal and navigate to the root directory of the project
+3. Run the following command to start the docker container
+```source tools/run_dev.sh```
+4. Open a browser and navigate to `http://localhost:80`
 
-Or you can do all the steps manuelly by:
-
-1- Install virual anv
-```pip install virtualenv```
-
-2- Create virtual env
-```python3 -m venv venv```
-
-3- Active virtual env
-```source venv/bin/activate```
-
-4- Install requirements
-```pip install -r requirements.txt```
-
-5- Run the script. ```python3 test_urls.py```
-
-In order to change the url of the swagger file, you can change the variable ```swagger_url``` in the file ```test_swagger.py```
+Now you can test the APIs using UI.
