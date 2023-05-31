@@ -15,8 +15,8 @@ class URLProcessingView(View):
         form = URLProcessingForm(request.POST)
         if form.is_valid():
             swagger_url = form.cleaned_data['swagger_url']
-            results = swagger_test(app_url=swagger_url, request=request)
-            return render(request, self.template_name, {'form': form, 'results': results})
+            swagger_test(app_url=swagger_url, request=request)
+            return render(request, self.template_name, {'form': form})
         else:
             messages.error(request, f"Please enter a valid URL.")
             return render(request, self.template_name, {'form': form})

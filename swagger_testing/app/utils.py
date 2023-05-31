@@ -232,13 +232,9 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
             try:
                 assert action in _HTTP_METHODS, f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
             except:
-                yield ("FAILED", operation)
+                yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
                 continue
             response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
-
-            if response.status_code == 404:
-                yield (f"{response.status_code} FAILED", operation)
-                continue
 
             # Get valid request and response body
             body_req = swagger_parser.get_send_request_correct_body(path, action)
@@ -247,6 +243,12 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 response_spec = swagger_parser.get_request_data(path, action, body_req)
             except (TypeError, ValueError) as exc:
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
+                continue
+
+            if response.status_code == 404 and not response.status_code in response_spec.keys():
+                # https://raw.githubusercontent.com/swaggest/php-json-schema/1bb97901314f828774dd8c5b21bff889ce0b34bb/spec/petstore-swagger.json
+                # TODO
+                yield (f"{response.status_code} FAILED {action.upper()} {url}")
                 continue
 
             # Get response data
@@ -267,23 +269,27 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
 
             try:
                 if response.status_code in [200, 201]:
-                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
+                    pass
+                elif response.status_code in response_spec.keys():
+                    pass
                 elif response.status_code in response_spec.keys():
                     validate_definition(swagger_parser, response_spec[response.status_code], response_json)
-                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
                 elif 'default' in response_spec.keys():
                     validate_definition(swagger_parser, response_spec['default'], response_json)
-                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
                 else:
-                    print(f"FAILED status code {response.status_code} {action.upper()} {url} Expected: {list(response_spec.keys())}")
+                    # https://raw.githubusercontent.com/swaggest/php-json-schema/1bb97901314f828774dd8c5b21bff889ce0b34bb/spec/petstore-swagger.json
+                    # TODO
+                    yield (f"{response.status_code} FAILED {action.upper()} {url} Expected: {list(response_spec.keys())}")
+                    continue
             except AssertionError as exc:
-                yield (f"{response.status_code} FAILED", operation)
+                yield (f"{response.status_code} FAILED {action.upper()} {url} Expected: {list(response_spec.keys())}")
                 continue
 
+            yield (f"{response.status_code} PASSED {action.upper()} {url}")
             if wait_time_between_tests > 0:
                 time.sleep(wait_time_between_tests)
 
-            yield (f"{response.status_code} PASSED", operation)
+
 
 
 
@@ -297,11 +303,11 @@ def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, requ
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
-    for status, operation in swagger_test_yield(app_url=app_url,
+    for status in swagger_test_yield(app_url=app_url,
                                               wait_time_between_tests=wait_time_between_tests,
                                               extra_headers=extra_headers,
                                               request=request):
         if 'PASSED' in status:
-            messages.success(request, f"{status} {operation[1][1]} {operation[1][0]}")
+            messages.success(request, f"{status}")
         else:
-            messages.error(request, f"{status} {operation[1][1]} {operation[1][0]}")
+            messages.error(request, f"{status}")

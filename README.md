@@ -41,7 +41,7 @@ https://raw.githubusercontent.com/opendata-for-all/APIDiscoverer/df66ad63a5a5575
 https://raw.githubusercontent.com/FMXExpress/AutoTablesForRADServer/67d5f358d7276036b45797a6072d5e4cdc731af4/Samples/Logger/apispec.json
 https://raw.githubusercontent.com/barracudanetworks/waf-automation/2d2b84932b62872a20dc3af7f87e0225d1133f88/waf-api/openapi-spec/v11.0.0/v3.2/Cluster_nodes.json
 https://raw.githubusercontent.com/Bittrex/bittrex.github.io/977b907742c90914c78ded9028930b3309165839/_data/api-spec-v3.json
-https://raw.githubusercontent.com/bcgov/api-specs/d8b0d787d334778e21fe7583deaa4c496acfef44/news/news-oas2.json
+
 
 
 Json decode error:
