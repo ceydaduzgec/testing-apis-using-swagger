@@ -53,17 +53,88 @@
         li {
             margin-bottom: 5px;
         }
+
+        .container {
+          background-color: #f1f1f1;
+          padding: 20px;
+        }
+
+        .messages {
+          background-color: #fff;
+          border: 1px solid #ccc;
+          border-radius: 5px;
+          padding: 10px;
+        }
+
+        .messages ul {
+          list-style-type: none;
+          padding: 0;
+        }
+
+        .message {
+          margin-bottom: 10px;
+          padding: 10px;
+          border-radius: 5px;
+        }
+
+        .success {
+          background-color: #dff0d8;
+          color: #3c763d;
+        }
+
+        .error {
+          background-color: #f2dede;
+          color: #a94442;
+        }
+
+        .warning {
+          background-color: #fcf8e3;
+          color: #8a6d3b;
+        }
+        .container {
+            background-color: #f1f1f1;
+            padding: 20px;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .form-group {
+            margin-right: 10px;
+        }
+
+        button[type="submit"] {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+
+
     </style>
 </head>
 <body>
-    <h1>URL Processing</h1>
+    <h1>Test Swagger Json</h1>
 
-    <form method="post">
-        {% csrf_token %}
-        <label for="url">Enter a URL:</label>
-        <input type="text" name="swagger_url" id="swagger_url">
-        <button type="submit">Process</button>
-    </form>
+    <div class="container">
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_swagger_url">{{ form.swagger_url.label }}</label>
+                    <input type="text" id="id_swagger_url" name="swagger_url" placeholder="{{ form.swagger_url.help_text }}">
+                </div>
+                <div class="form-group">
+                    <button type="submit">Test</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
 
     {% if messages %}
     <ul class="messages">

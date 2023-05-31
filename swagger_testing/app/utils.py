@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-
 import json
-import logging
-import os
 import requests
+import logging
 import six
 import time
 from django.contrib import messages
@@ -117,22 +114,6 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
     return url, body, headers, files
 
 
-def get_method_from_action(client, action):
-    """Get a client method from an action.
-
-    Args:
-        client: flask client.
-        aciton: action name.
-
-    Returns:
-        A flask client function.
-    """
-    error_msg = f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
-    assert action in _HTTP_METHODS, error_msg
-
-    return client.__getattribute__(action)
-
-
 def validate_definition(swagger_parser, valid_response, response):
     """
     Validate the definition of the response given the given specification and body.
@@ -183,14 +164,12 @@ def validate_definition(swagger_parser, valid_response, response):
         assert len(set(valid_definition).intersection(actual_definition)) >= 1
 
 
-def swagger_test_yield(app_url=None, wait_time_between_tests=0,
-                       dry_run=False, extra_headers={},request=None):
+def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={},request=None):
     """Test the given swagger api Yield the action and operation done for each test.
 
     Args:
         app_url: URL of the swagger api.
         wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        dry_run: don't actually execute the test, only show what would be sent
         extra_headers: additional headers you may want to send for all operations
 
     Returns:
@@ -200,16 +179,32 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
     # Get swagger json response and parse it
+
     if app_url is not None:
         app_client = requests
-        remote_swagger_def = requests.get(app_url).json()
-        swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
-        app_url = app_url[:-len('/swagger.json')]
+        try:
+            response = app_client.get(app_url)
+        except:
+            messages.error(request, f"Invalid URL: {app_url}")
+            return
+        remote_swagger_def = response.json()
+        try:
+            swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
+        except ValueError as exc:
+            error = str(exc).split(":")[0]
+            messages.error(request, f"Invalid swagger: {error}")
+            return
+
     else:
         raise ValueError('You must either specify a swagger.yaml path or an app url')
 
+    try:
+        app_url = swagger_parser.specification["schemes"][0] + "://" + swagger_parser.specification["host"] + swagger_parser.specification["basePath"]
+    except KeyError:
+        messages.error(request, f"JSON doesn't contain schemes, host or basePath")
+        return
     print(f"Starting runing tests for {app_url} using examples.")
-
+    logger.info(f"Starting runing tests for {app_url} using examples.")
     operation_sorted = {method: [] for method in _HTTP_METHODS}
 
     # Sort operation by action in order of _HTTP_METHODS
@@ -218,19 +213,13 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
     for operation, request in operations.items():
         operation_sorted[request[1]].append((operation, request))
 
-    postponed = []
-
     # For every action make request
     for action in _HTTP_METHODS:
         for operation in operation_sorted[action]:
             # path is relative to the base path
             path = operation[1][0]
-
             request_args = get_request_args(path, action, swagger_parser)
             url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
-
-            print(f"Testing {action.upper()} {url}")
-
             # Add any extra headers specified by the user
             headers.extend([(key, value)for key, value in extra_headers.items()])
 
@@ -239,87 +228,80 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0,
             else:
                 base_url = app_url
             full_path = f"{base_url}{url}"
-            full_path = full_path.replace('http', 'https')
-            if dry_run:
-                print("\nWould send %s to %s with body %s and headers %s" %
-                            (action.upper(), full_path, body, headers))
+
+            try:
+                assert action in _HTTP_METHODS, f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
+            except:
+                yield ("FAILED", operation)
+                continue
+            response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
+
+            if response.status_code == 404:
+                yield (f"{response.status_code} FAILED", operation)
                 continue
 
-            response = get_method_from_action(app_client, action)(full_path,
-                                                                      headers=dict(headers),
-                                                                      data=body,
-                                                                      files=files)
+            # Get valid request and response body
+            body_req = swagger_parser.get_send_request_correct_body(path, action)
 
-            if response.status_code != 404:
-                # Get valid request and response body
-                body_req = swagger_parser.get_send_request_correct_body(path, action)
+            try:
+                response_spec = swagger_parser.get_request_data(path, action, body_req)
+            except (TypeError, ValueError) as exc:
+                logger.warning(f"Error in the swagger file: {repr(exc)}")
+                continue
 
-                try:
-                    response_spec = swagger_parser.get_request_data(path, action, body_req)
-                except (TypeError, ValueError) as exc:
-                    logger.warning(f"Error in the swagger file: {repr(exc)}")
-                    continue
+            # Get response data
+            if hasattr(response, 'content'):
+                response_text = response.content
+            else:
+                response_text = response.data
 
-                # Get response data
-                if hasattr(response, 'content'):
-                    response_text = response.content
-                else:
-                    response_text = response.data
+            # Convert to str
+            if hasattr(response_text, 'decode'):
+                response_text = response_text.decode('utf-8')
 
-                # Convert to str
-                if hasattr(response_text, 'decode'):
-                    response_text = response_text.decode('utf-8')
+            # Get json
+            try:
+                response_json = json.loads(response_text)
+            except ValueError:
+                response_json = response_text
 
-                # Get json
-                try:
-                    response_json = json.loads(response_text)
-                except ValueError:
-                    response_json = response_text
-
+            try:
                 if response.status_code in [200, 201]:
-                    print(f"PASSED status code {response.status_code}")
+                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
                 elif response.status_code in response_spec.keys():
                     validate_definition(swagger_parser, response_spec[response.status_code], response_json)
-                    print(f"PASSED status code {response.status_code}")
+                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
                 elif 'default' in response_spec.keys():
                     validate_definition(swagger_parser, response_spec['default'], response_json)
-                    print(f"PASSED status code {response.status_code}")
+                    print(f"PASSED status code {response.status_code} {action.upper()} {url}")
                 else:
-                    print(f"FAILED status code {response.status_code} Expected: {list(response_spec.keys())}")
-
-                if wait_time_between_tests > 0:
-                    time.sleep(wait_time_between_tests)
-
-                yield (action, operation)
-            else:
-                # 404 => Postpone retry
-                if {'action': action, 'operation': operation} in postponed:  # Already postponed => raise error
-                    raise Exception(f"Invalid status code {response.status_code}")
-
-                operation_sorted[action].append(operation)
-                postponed.append({'action': action, 'operation': operation})
-                yield (action, operation)
+                    print(f"FAILED status code {response.status_code} {action.upper()} {url} Expected: {list(response_spec.keys())}")
+            except AssertionError as exc:
+                yield (f"{response.status_code} FAILED", operation)
                 continue
 
+            if wait_time_between_tests > 0:
+                time.sleep(wait_time_between_tests)
 
-def swagger_test(app_url=None, wait_time_between_tests=0,
-                 dry_run=False, extra_headers={}, request=None):
+            yield (f"{response.status_code} PASSED", operation)
+
+
+
+def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, request=None):
     """
     Args:
         app_url: URL of the swagger api.
         wait_time_between_tests: an number that will be used as waiting time between tests [in seconds].
-        dry_run: don't actually execute the test, only show what would be sent
         extra_headers: additional headers you may want to send for all operations
 
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
-    for action, operation in swagger_test_yield(app_url=app_url,
+    for status, operation in swagger_test_yield(app_url=app_url,
                                               wait_time_between_tests=wait_time_between_tests,
-                                              dry_run=dry_run,
                                               extra_headers=extra_headers,
                                               request=request):
-        if action:
-            messages.success(request, operation)
+        if 'PASSED' in status:
+            messages.success(request, f"{status} {operation[1][1]} {operation[1][0]}")
         else:
-            messages.error(request, operation)
+            messages.error(request, f"{status} {operation[1][1]} {operation[1][0]}")
