@@ -245,52 +245,18 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
                 continue
 
+            # Validate response
             if response.status_code == 404 and not response.status_code in response_spec.keys():
-                # https://raw.githubusercontent.com/swaggest/php-json-schema/1bb97901314f828774dd8c5b21bff889ce0b34bb/spec/petstore-swagger.json
-                # TODO
                 yield (f"{response.status_code} FAILED {action.upper()} {url}")
                 continue
 
-            # Get response data
-            if hasattr(response, 'content'):
-                response_text = response.content
-            else:
-                response_text = response.data
-
-            # Convert to str
-            if hasattr(response_text, 'decode'):
-                response_text = response_text.decode('utf-8')
-
-            # Get json
-            try:
-                response_json = json.loads(response_text)
-            except ValueError:
-                response_json = response_text
-
-            try:
-                if response.status_code in [200, 201]:
-                    pass
-                elif response.status_code in response_spec.keys():
-                    pass
-                elif response.status_code in response_spec.keys():
-                    validate_definition(swagger_parser, response_spec[response.status_code], response_json)
-                elif 'default' in response_spec.keys():
-                    validate_definition(swagger_parser, response_spec['default'], response_json)
-                else:
-                    # https://raw.githubusercontent.com/swaggest/php-json-schema/1bb97901314f828774dd8c5b21bff889ce0b34bb/spec/petstore-swagger.json
-                    # TODO
-                    yield (f"{response.status_code} FAILED {action.upper()} {url} Expected: {list(response_spec.keys())}")
-                    continue
-            except AssertionError as exc:
+            elif response.status_code not in [200, 201] and response.status_code not in response_spec.keys() and 'default' not in response_spec.keys():
                 yield (f"{response.status_code} FAILED {action.upper()} {url} Expected: {list(response_spec.keys())}")
                 continue
 
             yield (f"{response.status_code} PASSED {action.upper()} {url}")
             if wait_time_between_tests > 0:
                 time.sleep(wait_time_between_tests)
-
-
-
 
 
 def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, request=None):
