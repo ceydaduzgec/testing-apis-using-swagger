@@ -179,35 +179,31 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
     # Get swagger json response and parse it
-
-    if app_url is not None:
-        app_client = requests
-        try:
-            response = app_client.get(app_url)
-        except:
-            messages.error(request, f"Invalid URL: {app_url}")
-            return
+    try:
+        response = requests.get(app_url)
         remote_swagger_def = response.json()
-        try:
-            swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
-        except ValueError as exc:
-            error = str(exc).split(":")[0]
-            messages.error(request, f"Invalid swagger: {error}")
-            return
+    except:
+        messages.error(request, f"You must specify a valid swagger.json path.: {app_url}")
+        return
 
-    else:
-        raise ValueError('You must either specify a swagger.yaml path or an app url')
+    try:
+        swagger_parser = SwaggerParser(swagger_dict=remote_swagger_def, use_example=True)
+    except ValueError as exc:
+        error = str(exc).split(":")[0]
+        messages.error(request, f"Invalid swagger: {error}")
+        return
 
     try:
         app_url = swagger_parser.specification["schemes"][0] + "://" + swagger_parser.specification["host"] + swagger_parser.specification["basePath"]
     except KeyError:
         messages.error(request, f"JSON doesn't contain schemes, host or basePath")
         return
+
     print(f"Starting runing tests for {app_url} using examples.")
     logger.info(f"Starting runing tests for {app_url} using examples.")
-    operation_sorted = {method: [] for method in _HTTP_METHODS}
 
     # Sort operation by action in order of _HTTP_METHODS
+    operation_sorted = {method: [] for method in _HTTP_METHODS}
     operations = swagger_parser.operation.copy()
     operations.update(swagger_parser.generated_operation)
     for operation, request in operations.items():
@@ -229,13 +225,11 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 base_url = app_url
             full_path = f"{base_url}{url}"
 
-            try:
-                assert action in _HTTP_METHODS, f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}"
-            except:
+            if action not in _HTTP_METHODS:
                 yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
                 continue
-            response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
 
+            response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
             # Get valid request and response body
             body_req = swagger_parser.get_send_request_correct_body(path, action)
 
@@ -269,10 +263,7 @@ def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, requ
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
-    for status in swagger_test_yield(app_url=app_url,
-                                              wait_time_between_tests=wait_time_between_tests,
-                                              extra_headers=extra_headers,
-                                              request=request):
+    for status in swagger_test_yield(app_url=app_url, wait_time_between_tests=wait_time_between_tests, extra_headers=extra_headers, request=request):
         if 'PASSED' in status:
             messages.success(request, f"{status}")
         else:
