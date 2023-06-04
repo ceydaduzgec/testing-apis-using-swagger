@@ -203,21 +203,21 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
     logger.info(f"Starting runing tests for {app_url} using examples.")
 
     # Sort operation by action in order of _HTTP_METHODS
-    operation_sorted = {method: [] for method in _HTTP_METHODS}
+    operation_sorted = {}
     operations = swagger_parser.operation.copy()
     operations.update(swagger_parser.generated_operation)
     for operation, request in operations.items():
-        operation_sorted[request[1]].append((operation, request))
+        path = request[0]
+        operation_sorted[path] = operation_sorted.get(path, []) + [(operation, request)]
 
-    # For every action make request
-    for action in _HTTP_METHODS:
-        for operation in operation_sorted[action]:
-            # path is relative to the base path
-            path = operation[1][0]
+    # Sort operations for each endpoint based on _HTTP_METHODS
+    for path, operations in operation_sorted.items():
+        sorted_operations = sorted(operations, key=lambda x: _HTTP_METHODS.index(x[1][1]))
+        for operation in sorted_operations:
+            action = operation[1][1]
             request_args = get_request_args(path, action, swagger_parser)
             url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
-            # Add any extra headers specified by the user
-            headers.extend([(key, value)for key, value in extra_headers.items()])
+            headers.extend([(key, value) for key, value in extra_headers.items()])
 
             if app_url.endswith(swagger_parser.base_path):
                 base_url = app_url[:-len(swagger_parser.base_path)]
@@ -230,7 +230,6 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 continue
 
             response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
-            # Get valid request and response body
             body_req = swagger_parser.get_send_request_correct_body(path, action)
 
             try:
@@ -239,18 +238,13 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
                 continue
 
-            # Validate response
-            if response.status_code == 404 and not response.status_code in response_spec.keys():
-                yield (f"{response.status_code} FAILED {action.upper()} {url}")
-                continue
-
-            elif response.status_code not in [200, 201] and response.status_code not in response_spec.keys() and 'default' not in response_spec.keys():
-                yield (f"{response.status_code} FAILED {action.upper()} {url} Expected: {list(response_spec.keys())}")
-                continue
-
-            yield (f"{response.status_code} PASSED {action.upper()} {url}")
-            if wait_time_between_tests > 0:
-                time.sleep(wait_time_between_tests)
+            for expected_status_code, status_code_spec in response_spec.items():
+                if str(expected_status_code) == str(response.status_code) or expected_status_code == 'default':
+                    yield (f"Returned: {response.status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
+                    if wait_time_between_tests > 0:
+                        time.sleep(wait_time_between_tests)
+                else:
+                    yield (f"Returned: {response.status_code} Expected: {expected_status_code} FAILED {action.upper()} {url}")
 
 
 def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, request=None):
@@ -263,7 +257,21 @@ def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, requ
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
+    tested_status_codes = {}  # Dictionary to track tested status codes for each endpoint
+
     for status in swagger_test_yield(app_url=app_url, wait_time_between_tests=wait_time_between_tests, extra_headers=extra_headers, request=request):
+        # status_code, result = status.split(' ', 1)  # Split the status code and result message
+
+        # endpoint = result.split(' ')[-1]  # Extract the endpoint from the result message
+
+        # if endpoint not in tested_status_codes:
+        #     tested_status_codes[endpoint] = set()  # Create a set to track status codes for the endpoint
+
+        # if status_code in tested_status_codes[endpoint]:
+        #     continue  # Skip testing for already tested status codes
+
+        # tested_status_codes[endpoint].add(status_code)  # Add the tested status code to the set
+
         if 'PASSED' in status:
             messages.success(request, f"{status}")
         else:
