@@ -99,9 +99,6 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
                 header_value = header_value or parameter_spec.get('default', '')
                 headers += [(parameter_spec['name'], str(header_value))]
 
-    if query_params:
-        url = f"{url}?{urlencode(query_params)}"
-
     if ('Content-Type', 'multipart/form-data') not in headers:
         try:
             if body:
@@ -111,7 +108,7 @@ def get_url_body_from_request(action, path, request_args, swagger_parser):
     else:
         headers.remove(('Content-Type', 'multipart/form-data'))
 
-    return url, body, headers, files
+    return url, body, headers, files, query_params
 
 
 def validate_definition(swagger_parser, valid_response, response):
@@ -217,19 +214,6 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
             action = operation[1][1]
             request_args = get_request_args(path, action, swagger_parser)
 
-            url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
-            headers.extend([(key, value) for key, value in extra_headers.items()])
-
-            if app_url.endswith(swagger_parser.base_path):
-                base_url = app_url[:-len(swagger_parser.base_path)]
-            else:
-                base_url = app_url
-            full_path = f"{base_url}{url}"
-
-            if action not in _HTTP_METHODS:
-                yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
-                continue
-
             try:
                 body_req = swagger_parser.get_send_request_correct_body(path, action)
                 response_spec = swagger_parser.get_request_data(path, action, body_req)
@@ -237,20 +221,44 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
                 continue
 
+            if 200 not in response_spec:
+                response_spec[200] = ''
+
             for expected_status_code, status_code_spec in response_spec.items():
+                query_url = None
+                url, body, headers, files, query_params = get_url_body_from_request(action, path, request_args, swagger_parser)
+                headers.extend([(key, value) for key, value in extra_headers.items()])
+                if query_params and expected_status_code != 400:
+                    url = f"{url}?{urlencode(query_params)}"
 
-                if expected_status_code in [400, 405]:
-                    request_args['invalid_param'] = 'invalid_value'
+                test_action = None
+                if expected_status_code == 400:
+                    body = "'body'"
+                    url = f"{url}?{urlencode({'invalid': 'test'})}"
+                elif expected_status_code == 405:
+                    test_action = 'patch'
 
-                response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
+                if app_url.endswith(swagger_parser.base_path):
+                    base_url = app_url[:-len(swagger_parser.base_path)]
+                else:
+                    base_url = app_url
+
+                full_path = f"{base_url}{url}"
+
+                if action not in _HTTP_METHODS:
+                    yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
+                    continue
+
+                if test_action:
+                    response = requests.__getattribute__(test_action)(full_path, headers=dict(headers), data=body, files=files)
+                else:
+                    response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
 
                 if wait_time_between_tests > 0:
                     time.sleep(wait_time_between_tests)
 
-                if str(expected_status_code) == str(response.status_code):
+                if str(expected_status_code) == str(response.status_code) or expected_status_code == 'default':
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
-                elif expected_status_code == 'default':
-                    yield (f"Returned: {expected_status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
                 else:
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} FAILED {action.upper()} {url}")
 
