@@ -216,6 +216,7 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
         for operation in sorted_operations:
             action = operation[1][1]
             request_args = get_request_args(path, action, swagger_parser)
+
             url, body, headers, files = get_url_body_from_request(action, path, request_args, swagger_parser)
             headers.extend([(key, value) for key, value in extra_headers.items()])
 
@@ -229,20 +230,27 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
                 continue
 
-            response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
-            body_req = swagger_parser.get_send_request_correct_body(path, action)
-
             try:
+                body_req = swagger_parser.get_send_request_correct_body(path, action)
                 response_spec = swagger_parser.get_request_data(path, action, body_req)
             except (TypeError, ValueError) as exc:
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
                 continue
 
             for expected_status_code, status_code_spec in response_spec.items():
-                if str(expected_status_code) == str(response.status_code) or expected_status_code == 'default':
+
+                if expected_status_code in [400, 405]:
+                    request_args['invalid_param'] = 'invalid_value'
+
+                response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
+
+                if wait_time_between_tests > 0:
+                    time.sleep(wait_time_between_tests)
+
+                if str(expected_status_code) == str(response.status_code):
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
-                    if wait_time_between_tests > 0:
-                        time.sleep(wait_time_between_tests)
+                elif expected_status_code == 'default':
+                    yield (f"Returned: {expected_status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
                 else:
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} FAILED {action.upper()} {url}")
 
