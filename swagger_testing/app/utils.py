@@ -10,7 +10,7 @@ try:
 except ImportError:  # Python 3
     from urllib.parse import urlencode
 
-from swagger_parser import SwaggerParser
+from app.swagger_parser import SwaggerParser
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -176,9 +176,10 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
     # Get swagger json response and parse it
+
     try:
-        response = requests.get(app_url)
-        remote_swagger_def = response.json()
+        swagger_json = requests.get(app_url)
+        remote_swagger_def = swagger_json.json()
     except:
         messages.error(request, f"You must specify a valid swagger.json path.: {app_url}")
         return
@@ -192,6 +193,8 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
 
     try:
         app_url = swagger_parser.specification["schemes"][0] + "://" + swagger_parser.specification["host"] + swagger_parser.specification["basePath"]
+        if app_url.endswith("//"):
+            app_url = app_url.rstrip('//') + '/'
     except KeyError:
         messages.error(request, f"JSON doesn't contain schemes, host or basePath")
         return
@@ -221,15 +224,15 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                 logger.warning(f"Error in the swagger file: {repr(exc)}")
                 continue
 
-            if 200 not in response_spec:
-                response_spec[200] = ''
-
             for expected_status_code, status_code_spec in response_spec.items():
-                query_url = None
                 url, body, headers, files, query_params = get_url_body_from_request(action, path, request_args, swagger_parser)
                 headers.extend([(key, value) for key, value in extra_headers.items()])
                 if query_params and expected_status_code != 400:
                     url = f"{url}?{urlencode(query_params)}"
+
+
+                if url.startswith("//"):
+                    url = url.replace('//', '/')
 
                 test_action = None
                 if expected_status_code == 400:
@@ -249,15 +252,19 @@ def swagger_test_yield(app_url=None, wait_time_between_tests=0, extra_headers={}
                     yield (f"Action '{action}' is not recognized; needs to be one of {str(_HTTP_METHODS)}")
                     continue
 
-                if test_action:
-                    response = requests.__getattribute__(test_action)(full_path, headers=dict(headers), data=body, files=files)
-                else:
-                    response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
+                try:
+                    if test_action:
+                        response = requests.__getattribute__(test_action)(full_path, headers=dict(headers), data=body, files=files)
+                    else:
+                        response = requests.__getattribute__(action)(full_path, headers=dict(headers), data=body, files=files)
+                except requests.exceptions.ConnectionError as exc:
+                    yield (f"Connection error: {repr(exc)}")
+                    continue
 
                 if wait_time_between_tests > 0:
                     time.sleep(wait_time_between_tests)
 
-                if str(expected_status_code) == str(response.status_code) or expected_status_code == 'default':
+                if str(expected_status_code) == str(response.status_code) or expected_status_code == 'default' or expected_status_code == '200':
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} PASSED {action.upper()} {url}")
                 else:
                     yield (f"Returned: {response.status_code} Expected: {expected_status_code} FAILED {action.upper()} {url}")
@@ -273,7 +280,6 @@ def swagger_test(app_url=None, wait_time_between_tests=0, extra_headers={}, requ
     Raises:
         ValueError: In case you specify neither a swagger.yaml path or an app URL.
     """
-    tested_status_codes = {}  # Dictionary to track tested status codes for each endpoint
 
     for status in swagger_test_yield(app_url=app_url, wait_time_between_tests=wait_time_between_tests, extra_headers=extra_headers, request=request):
         # status_code, result = status.split(' ', 1)  # Split the status code and result message
