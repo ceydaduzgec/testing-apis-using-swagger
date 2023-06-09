@@ -3,14 +3,15 @@
 
 ## Requirements
 
-Install Docker
+- Docker
+- Git
+- Python
 
-## How to run the script
+## How to run the project
 
 1. Clone the repository to your local machine
-2. Open a terminal and navigate to the root directory of the project code `cd swagger_testing`
-3. Run the following command to start the docker container
-```source tools/run_dev.sh```
+2. Open a terminal and navigate to the root directory of the project code: `cd swagger_testing`
+3. Run the following command to start the docker container: `source tools/run_dev.sh`
 4. Open a browser and navigate to `http://localhost:80`
 
 Now you can test the APIs using UI.
